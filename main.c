@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
+#include <time.h>
 
 #include "argon2.h"
 
@@ -34,6 +34,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *mine(void *arg) {
     struct task *t = (struct task *) arg;
+    uint32_t nonce, diff;
 
     // hash holder
     uint8_t hash[HASH_LEN];
@@ -50,26 +51,27 @@ void *mine(void *arg) {
     data[ADDRESS_LEN + 6] = t->timestamp >> 8;
     data[ADDRESS_LEN + 7] = t->timestamp;
 
-    for (uint32_t n = t->from; n < t->to; n++) {
+    for (nonce = t->from; nonce < t->to; nonce++) {
         // increase nonce
-        data[ADDRESS_LEN + 8] = n >> 24;
-        data[ADDRESS_LEN + 9] = n >> 16;
-        data[ADDRESS_LEN + 10] = n >> 8;
-        data[ADDRESS_LEN + 11] = n;
+        data[ADDRESS_LEN + 8] = nonce >> 24;
+        data[ADDRESS_LEN + 9] = nonce >> 16;
+        data[ADDRESS_LEN + 10] = nonce >> 8;
+        data[ADDRESS_LEN + 11] = nonce;
 
         // compute hash
         argon2i_hash_raw(t_cost, m_cost, parallelism, data, sizeof(data), salt, salt_len, hash, HASH_LEN);
 
         // check diff
-        uint32_t diff = ((uint32_t) hash[0] << 24) | ((uint32_t) hash[1] << 16) | ((uint32_t) hash[2] << 8)
-                | (uint32_t) hash[3];
+        diff = ((uint32_t) hash[0] << 24) | ((uint32_t) hash[1] << 16) | ((uint32_t) hash[2] << 8) | (uint32_t) hash[3];
         if (diff <= DIFFICULTY) {
+			int i;
+
             pthread_mutex_lock(&mutex);
-            for (int i = 0; i < sizeof(data); i++) {
+            for (i = 0; i < sizeof(data); i++) {
                 printf("%02x", data[i]);
             }
             printf(" => ");
-            for (int i = 0; i < HASH_LEN; i++) {
+            for (i = 0; i < HASH_LEN; i++) {
                 printf("%02x", hash[i]);
             }
             printf("\n");
@@ -81,45 +83,45 @@ void *mine(void *arg) {
 }
 
 uint64_t current_timestamp() {
-    struct timeval t;
-    gettimeofday(&t, NULL);
+    time_t t;
+    time(&t);
 
-    return t.tv_sec * 1000LL + t.tv_usec / 1000LL;
+    return t;
 }
 
 int main(void) {
     // TODO: parse arguments
-    size_t num_threads = 8;
     uint8_t address[ADDRESS_LEN] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
+    size_t num_threads = 8, i;
 
     while (1) {
         uint64_t timestamp = current_timestamp();
 
-        struct task *tasks[num_threads];
-        pthread_t threads[num_threads];
+        struct task *tasks = (struct task *) malloc(sizeof(struct task) * num_threads);
+        pthread_t *threads = (pthread_t *) malloc(sizeof(pthread_t) * num_threads);
 
-        for (size_t i = 0; i < num_threads; i++) {
-            tasks[i] = (struct task*) malloc(sizeof(struct task));
-            tasks[i]->address = address;
-            tasks[i]->timestamp = timestamp;
-            tasks[i]->from = NONCE_CHUNK * i;
-            tasks[i]->to = NONCE_CHUNK * (i + 1);
+        for (i = 0; i < num_threads; i++) {
+            tasks[i].address = address;
+            tasks[i].timestamp = timestamp;
+            tasks[i].from = NONCE_CHUNK * i;
+            tasks[i].to = NONCE_CHUNK * (i + 1);
 
-            if (pthread_create(&threads[i], NULL, mine, tasks[i])) {
+            if (pthread_create(&threads[i], NULL, mine, &tasks[i])) {
                 fprintf(stderr, "Error creating thread\n");
                 return 1;
             }
         }
 
-        for (size_t i = 0; i < num_threads; i++) {
+        for (i = 0; i < num_threads; i++) {
             if (pthread_join(threads[i], NULL)) {
                 fprintf(stderr, "Error joining thread\n");
                 return 2;
             }
-            free(tasks[i]);
         }
 
         printf("Hash rate: %ld H/s\n", NONCE_CHUNK * num_threads * 1000 / (current_timestamp() - timestamp));
+        free(tasks);
+        free(threads);
     }
 
     return 0;
