@@ -34,7 +34,13 @@ struct task {
     uint32_t to; // exclusive
 };
 
+#if defined(_WIN32)
+#include <windows.h>
+HANDLE mutex = CreateMutex(NULL, false, NULL);
+#else
+#include <pthread.h>
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 void *mine(void *arg) {
     struct task *t = (struct task *) arg;
@@ -70,7 +76,11 @@ void *mine(void *arg) {
         if (diff <= DIFFICULTY) {
 			int i;
 
+#if defined(_WIN32)
+            WaitForSingleObject(mutex, INFINITE);
+#else
             pthread_mutex_lock(&mutex);
+#endif
             for (i = 0; i < sizeof(data); i++) {
                 printf("%02x", data[i]);
             }
@@ -79,7 +89,11 @@ void *mine(void *arg) {
                 printf("%02x", hash[i]);
             }
             printf("\n");
+#if defined(_WIN32)
+            ReleaseMutex(mutex);
+#else
             pthread_mutex_unlock(&mutex);
+#endif
         }
     }
 
