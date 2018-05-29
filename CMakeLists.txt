@@ -6,6 +6,7 @@ set(CMAKE_C_STANDARD 11)
 
 # Argon2
 include_directories("./phc-winner-argon2/include")
+include_directories("./phc-winner-argon2/src")
 link_directories("./phc-winner-argon2")
 
 # Compile

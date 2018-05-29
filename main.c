@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "argon2.h"
+#include "thread.h"
 
 #define ADDRESS_LEN   20
 #define HASH_LEN      32
@@ -14,12 +15,15 @@
 #define NONCE_CHUNK   128
 
 /**
- * Argon2
+ * Argon2 parameters
  */
 uint32_t t_cost = 1;
 uint32_t m_cost = (1 << 16);
 uint32_t parallelism = 1;
 
+/**
+ * Hash salt
+ */
 uint8_t *salt = (uint8_t *) "semux-pow-argon2";
 size_t salt_len = 16;
 
@@ -79,26 +83,27 @@ void *mine(void *arg) {
         }
     }
 
+    argon2_thread_exit();
     return NULL;
 }
 
 uint64_t current_timestamp() {
-    time_t t;
-    time(&t);
+    time_t tm;
+    time(&tm);
 
-    return t;
+    return tm;
 }
 
 int main(void) {
     // TODO: parse arguments
     uint8_t address[ADDRESS_LEN] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
-    size_t num_threads = 8, i;
+    size_t num_threads = 4, i;
 
     while (1) {
         uint64_t timestamp = current_timestamp();
 
         struct task *tasks = (struct task *) malloc(sizeof(struct task) * num_threads);
-        pthread_t *threads = (pthread_t *) malloc(sizeof(pthread_t) * num_threads);
+        argon2_thread_handle_t *threads = (argon2_thread_handle_t *) malloc(sizeof(argon2_thread_handle_t) * num_threads);
 
         for (i = 0; i < num_threads; i++) {
             tasks[i].address = address;
@@ -106,20 +111,20 @@ int main(void) {
             tasks[i].from = NONCE_CHUNK * i;
             tasks[i].to = NONCE_CHUNK * (i + 1);
 
-            if (pthread_create(&threads[i], NULL, mine, &tasks[i])) {
+            if (argon2_thread_create(&threads[i], mine, &tasks[i])) {
                 fprintf(stderr, "Error creating thread\n");
                 return 1;
             }
         }
 
         for (i = 0; i < num_threads; i++) {
-            if (pthread_join(threads[i], NULL)) {
+            if (argon2_thread_join(threads[i])) {
                 fprintf(stderr, "Error joining thread\n");
                 return 2;
             }
         }
 
-        printf("Hash rate: %ld H/s\n", NONCE_CHUNK * num_threads * 1000 / (current_timestamp() - timestamp));
+        printf("Hash rate: %llu H/s\n", NONCE_CHUNK * num_threads / (current_timestamp() - timestamp));
         free(tasks);
         free(threads);
     }
