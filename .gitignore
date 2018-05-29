@@ -37,3 +37,5 @@
 .settings/
 .autotools
 
+# Cmake
+build/
