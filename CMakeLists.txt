@@ -4,13 +4,16 @@ project(semux-pow)
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_C_STANDARD 11)
 
-# Argon2
 include_directories("./phc-winner-argon2/include")
 include_directories("./phc-winner-argon2/src")
-link_directories("./phc-winner-argon2")
 
-# Compile
-add_executable(semux-pow main.c)
+add_executable(semux-pow
+    ./phc-winner-argon2/src/blake2/blake2b.c
+    ./phc-winner-argon2/src/argon2.c
+    ./phc-winner-argon2/src/core.c
+    ./phc-winner-argon2/src/encoding.c
+    ./phc-winner-argon2/src/ref.c
+    ./phc-winner-argon2/src/thread.c
+    main.c)
 
-# Link
-target_link_libraries(semux-pow argon2 pthread)
+target_link_libraries(semux-pow pthread)

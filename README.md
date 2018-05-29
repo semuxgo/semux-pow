@@ -6,13 +6,6 @@ Semux PoW is used for distributing the initial coins. It uses memory-hard hashin
 
 ```
 git clone --recursive https://github.com/semuxproject/semux-pow
-
-# build dependencies
-cd phc-winner-argon2
-make
-cd ..
-
-# build semux-pow
 mkdir build
 cd build
 cmake ..

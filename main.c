@@ -6,6 +6,14 @@
 #include <string.h>
 #include <time.h>
 
+
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <pthread.h>
+#include <sys/time.h>
+#endif
+
 #include "argon2.h"
 #include "thread.h"
 
@@ -35,10 +43,8 @@ struct task {
 };
 
 #if defined(_WIN32)
-#include <windows.h>
 HANDLE mutex = CreateMutex(NULL, false, NULL);
 #else
-#include <pthread.h>
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
@@ -74,7 +80,7 @@ void *mine(void *arg) {
         // check diff
         diff = ((uint32_t) hash[0] << 24) | ((uint32_t) hash[1] << 16) | ((uint32_t) hash[2] << 8) | (uint32_t) hash[3];
         if (diff <= DIFFICULTY) {
-			int i;
+            size_t i;
 
 #if defined(_WIN32)
             WaitForSingleObject(mutex, INFINITE);
@@ -102,10 +108,15 @@ void *mine(void *arg) {
 }
 
 uint64_t current_timestamp() {
-    time_t tm;
-    time(&tm);
-
-    return tm;
+#if defined(_WIN32)
+    SYSTEMTIME tm;
+    GetSystemTime(&tm);
+    return tm.wSecond * 1000ULL + tm.wMilliseconds;
+#else
+    struct timeval tm;
+    gettimeofday(&tm, NULL);
+    return tm.tv_sec * 1000ULL + tm.tv_usec / 1000ULL;
+#endif
 }
 
 int main(void) {
@@ -138,7 +149,7 @@ int main(void) {
             }
         }
 
-        printf("Hash rate: %llu H/s\n", NONCE_CHUNK * num_threads / (current_timestamp() - timestamp));
+        printf("Hash rate: %llu H/s\n", 1000ULL * NONCE_CHUNK * num_threads / (current_timestamp() - timestamp));
         free(tasks);
         free(threads);
     }
