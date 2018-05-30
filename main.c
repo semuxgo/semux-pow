@@ -47,6 +47,8 @@ HANDLE mutex;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
+FILE *fp;
+
 #if defined(_WIN32)
 unsigned __stdcall mine(void *arg) {
 #else
@@ -90,14 +92,12 @@ void *mine(void *arg) {
 #else
             pthread_mutex_lock(&mutex);
 #endif
+            printf("Solution found!\n");
             for (i = 0; i < sizeof(data); i++) {
-                printf("%02x", data[i]);
+                fprintf(fp, "%02x", data[i]);
             }
-            printf(" => ");
-            for (i = 0; i < HASH_LEN; i++) {
-                printf("%02x", hash[i]);
-            }
-            printf("\n");
+            fprintf(fp, "\n");
+            fflush(fp);
 #if defined(_WIN32)
             ReleaseMutex(mutex);
 #else
@@ -131,6 +131,12 @@ int main(void) {
     mutex = CreateMutex(NULL, FALSE, NULL);
 #endif
 
+    fp = fopen("coins.txt", "a");
+    if (!fp) {
+        fprintf(stderr, "Error opening file\n");
+        return 1;
+    }
+
     while (1) {
         uint64_t start, end, rate, sps;
 
@@ -146,14 +152,14 @@ int main(void) {
 
             if (argon2_thread_create(&threads[i], mine, &tasks[i])) {
                 fprintf(stderr, "Error creating thread\n");
-                return 1;
+                return 2;
             }
         }
 
         for (i = 0; i < num_threads; i++) {
             if (argon2_thread_join(threads[i])) {
                 fprintf(stderr, "Error joining thread\n");
-                return 2;
+                return 3;
             }
         }
 
