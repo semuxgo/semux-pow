@@ -19,14 +19,14 @@
 
 #define ADDRESS_LEN   20
 #define HASH_LEN      32
-#define DIFFICULTY    0x0FFFFFFF
+#define DIFFICULTY    0x00000FFF
 #define NONCE_CHUNK   128
 
 /**
  * Argon2 parameters
  */
 uint32_t t_cost = 1;
-uint32_t m_cost = (1 << 16);
+uint32_t m_cost = (1 << 18);
 uint32_t parallelism = 1;
 
 /**
@@ -149,7 +149,9 @@ int main(void) {
             }
         }
 
-        printf("Hash rate: %llu H/s\n", 1000ULL * NONCE_CHUNK * num_threads / (current_timestamp() - timestamp));
+        uint64_t rate = 1000ULL * NONCE_CHUNK * num_threads / (current_timestamp() - timestamp);
+        uint64_t hours = (1ULL << 32) / (DIFFICULTY + 1) / rate / 60 / 60;
+        printf("Hash rate: %llu H/s. It will take ~%llu hours to mine one coin.\n", rate, hours);
         free(tasks);
         free(threads);
     }
