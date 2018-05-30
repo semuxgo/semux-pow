@@ -122,10 +122,35 @@ uint64_t current_timestamp() {
 #endif
 }
 
-int main(void) {
-    // TODO: parse arguments
+void print_usage() {
+    fprintf(stderr, "Usage: semux-pow -t [threads] -a [address]\n");
+}
+
+int main(int argc, char *argv[]) {
     uint8_t address[ADDRESS_LEN] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
-    size_t num_threads = 4, i;
+    size_t num_threads = 4, i, j;
+
+    if (argc <= 1) {
+        print_usage();
+        return 1;
+    }
+
+    for (i = 1; i < argc; i++) {
+        int temp;
+        if (!strcmp("-t", argv[i])) {
+            sscanf(argv[++i], "%d", &temp);
+            num_threads = temp;
+        } else if (!strcmp("-a", argv[i])) {
+            char *a = argv[++i] + 2;
+            for (j = 0; j < ADDRESS_LEN; j++) {
+                sscanf(a + j * 2, "%02x", &temp);
+                address[j] = temp;
+            }
+        } else {
+            print_usage();
+            return 1;
+        }
+    }
 
 #if defined(_WIN32)
     mutex = CreateMutex(NULL, FALSE, NULL);
@@ -134,7 +159,7 @@ int main(void) {
     fp = fopen("coins.txt", "a");
     if (!fp) {
         fprintf(stderr, "Error opening file\n");
-        return 1;
+        return 2;
     }
 
     while (1) {
@@ -152,14 +177,14 @@ int main(void) {
 
             if (argon2_thread_create(&threads[i], mine, &tasks[i])) {
                 fprintf(stderr, "Error creating thread\n");
-                return 2;
+                return 3;
             }
         }
 
         for (i = 0; i < num_threads; i++) {
             if (argon2_thread_join(threads[i])) {
                 fprintf(stderr, "Error joining thread\n");
-                return 3;
+                return 4;
             }
         }
 
