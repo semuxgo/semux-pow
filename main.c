@@ -1,4 +1,3 @@
-#include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -26,7 +25,7 @@
  * Argon2 parameters
  */
 uint32_t t_cost = 1;
-uint32_t m_cost = (1 << 18);
+uint32_t m_cost = (1 << 16);
 uint32_t parallelism = 1;
 
 /**
@@ -43,12 +42,16 @@ struct task {
 };
 
 #if defined(_WIN32)
-HANDLE mutex = CreateMutex(NULL, false, NULL);
+HANDLE mutex;
 #else
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
+#if defined(_WIN32)
+unsigned __stdcall mine(void *arg) {
+#else
 void *mine(void *arg) {
+#endif
     struct task *t = (struct task *) arg;
     uint32_t nonce, diff;
 
@@ -109,9 +112,9 @@ void *mine(void *arg) {
 
 uint64_t current_timestamp() {
 #if defined(_WIN32)
-    SYSTEMTIME tm;
-    GetSystemTime(&tm);
-    return tm.wSecond * 1000ULL + tm.wMilliseconds;
+    FILETIME tm;
+    GetSystemTimeAsFileTime(&tm);
+    return ((((uint64_t)tm.dwHighDateTime << 32) | (uint64_t)tm.dwLowDateTime) / 10 - 11644473600000000ull) / 1000;
 #else
     struct timeval tm;
     gettimeofday(&tm, NULL);
@@ -124,15 +127,20 @@ int main(void) {
     uint8_t address[ADDRESS_LEN] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 };
     size_t num_threads = 4, i;
 
+#if defined(_WIN32)
+    mutex = CreateMutex(NULL, FALSE, NULL);
+#endif
+
     while (1) {
-        uint64_t timestamp = current_timestamp();
+        uint64_t start, end, rate, hours;
 
         struct task *tasks = (struct task *) malloc(sizeof(struct task) * num_threads);
         argon2_thread_handle_t *threads = (argon2_thread_handle_t *) malloc(sizeof(argon2_thread_handle_t) * num_threads);
 
+		start = current_timestamp();
         for (i = 0; i < num_threads; i++) {
             tasks[i].address = address;
-            tasks[i].timestamp = timestamp;
+            tasks[i].timestamp = start;
             tasks[i].from = NONCE_CHUNK * i;
             tasks[i].to = NONCE_CHUNK * (i + 1);
 
@@ -149,8 +157,9 @@ int main(void) {
             }
         }
 
-        uint64_t rate = 1000ULL * NONCE_CHUNK * num_threads / (current_timestamp() - timestamp);
-        uint64_t hours = (1ULL << 32) / (DIFFICULTY + 1) / rate / 60 / 60;
+        end = current_timestamp();
+        rate = 1000ULL * NONCE_CHUNK * num_threads / (end - start);
+        hours = (1ULL << 32) / (DIFFICULTY + 1) / rate / 60 / 60;
         printf("Hash rate: %llu H/s. It will take ~%llu hours to mine one coin.\n", rate, hours);
         free(tasks);
         free(threads);
