@@ -18,14 +18,14 @@
 
 #define ADDRESS_LEN   20
 #define HASH_LEN      32
-#define DIFFICULTY    0x00000FFF
-#define NONCE_CHUNK   128
+#define DIFFICULTY    0x00000003
+#define NONCE_CHUNK   4096
 
 /**
  * Argon2 parameters
  */
 uint32_t t_cost = 1;
-uint32_t m_cost = (1 << 16);
+uint32_t m_cost = 512;
 uint32_t parallelism = 1;
 
 /**
@@ -132,12 +132,12 @@ int main(void) {
 #endif
 
     while (1) {
-        uint64_t start, end, rate, hours;
+        uint64_t start, end, rate, sps;
 
         struct task *tasks = (struct task *) malloc(sizeof(struct task) * num_threads);
         argon2_thread_handle_t *threads = (argon2_thread_handle_t *) malloc(sizeof(argon2_thread_handle_t) * num_threads);
 
-		start = current_timestamp();
+        start = current_timestamp();
         for (i = 0; i < num_threads; i++) {
             tasks[i].address = address;
             tasks[i].timestamp = start;
@@ -159,8 +159,8 @@ int main(void) {
 
         end = current_timestamp();
         rate = 1000ULL * NONCE_CHUNK * num_threads / (end - start);
-        hours = (1ULL << 32) / (DIFFICULTY + 1) / rate / 60 / 60;
-        printf("Hash rate: %llu H/s. It will take ~%llu hours to mine one coin.\n", rate, hours);
+        sps = (1ULL << 32) / (DIFFICULTY + 1) / rate;
+        printf("Hash rate: %.1f kH/s, %.1f hours per sol\n", rate / 1000.0, sps / 3600.0);
         free(tasks);
         free(threads);
     }
